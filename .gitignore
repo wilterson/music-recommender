@@ -1,0 +1,5 @@
+credentials.py
+__pycache__
+env
+.cache
+.spotifycache
