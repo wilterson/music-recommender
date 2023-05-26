@@ -1,7 +1,11 @@
 import streamlit as st
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import pickle
+import numpy as np
+import pandas as pd
+import dill
+
+from sklearn.metrics.pairwise import cosine_similarity
 
 import credentials
 
@@ -74,33 +78,15 @@ def login():
         return sp
 
 
-def load_model():
-    model = None
-
-    with open('./similarity_01.pkl', 'rb') as f:
-        model = pickle.load(f)
-
-    return model
-
-# def get_recommendations(audio_features):
-#     model = load_model()
-
-#     if not model:
-#         return None
-
-#     print('FEATURES: ', audio_features)
-    # recommendations = model.predict(input_data)
-    # return prediction
-
-
 def get_recommendations(audio_features):
-    with open('similarity_full_features.pkl', 'rb') as f:
-        get_similarities = pickle.load(f)
+    model_file = 'similarity_full_features.pkl'
 
-    # get_similarities = pickle.load(open('similarity_01.pkl', 'rb'))
+    with open(model_file, 'rb') as f:
+        get_similarities = dill.load(f)
+
     recommendations = get_similarities(audio_features)
 
-    print(recommendations)
+    return recommendations
 
 
 def get_recommendations_by_genre(genre):
@@ -169,10 +155,54 @@ def app():
             tracks[0]['audio_features']['valence'],
         ]
 
-        print('\n\nFEATURES: ', features)
+        with st.spinner('Loading...'):
+            # Code to fetch recommendations
+            recommendations = get_recommendations(features)
 
-        # recommendations = get_recommendations([features])
-        recommendations = get_recommendations(features)
+        for i, row in recommendations.iterrows():
+            track_info = sp.track(row['id'], market='BR')
+
+            recommendations.loc[i, 'preview_url'] = track_info.get('preview_url', '')
+            recommendations.loc[i, 'image'] = track_info['album']['images'][0]['url']
+
+        st.title('Musicas Recomendadas para você:')
+        st.subheader('Baseado nas músicas que você curtiu no Spotify')
+
+        for _, row in recommendations.iterrows():
+            if pd.isna(row).any():
+                continue
+
+            print(row['id'])
+
+            image_url = row.get('image', '')
+            if image_url:
+                st.image(image_url, width=150)
+
+            st.write(row['name'])
+
+            artists = row.get('artists', '')
+            if artists:
+                st.write(f"Artist: {artists}")
+
+            album_name = row.get(' album_name', '')
+            if album_name:
+                st.write(f"Album: {album_name}")
+
+            popularity = row.get('popularity', '')
+            if popularity:
+                st.write(f"Popularity: {popularity}")
+
+            preview_url = row.get('preview_url', '')
+            if preview_url:
+                st.audio(preview_url, format='audio/mp3', start_time=0)
+
+            track_id = row.get('id', '')
+            if track_id:
+                st.write(f"[Ouvir com Spotify](https://open.spotify.com/track/{track_id})")
+
+            st.write('---')
+
+
 
 # Run Streamlit app
 if __name__ == '__main__':
